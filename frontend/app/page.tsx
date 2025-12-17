@@ -1,5 +1,5 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { isAddress, formatEther } from 'viem';
 import { TICKETING_CONTRACT_ABI } from '../utils/abis';
@@ -31,11 +31,11 @@ export default function Home() {
   });
 
   // Effect to handle success state syncing
-  // We use this effect to ensure "Success" only shows when isConfirmed BECOMES true implementation-wise
-  // and we can clear it manually when starting a new mint.
-  if (isConfirmed && !showSuccess && !isConfirming && hash) {
-    setShowSuccess(true);
-  }
+  useEffect(() => {
+    if (isConfirmed && !showSuccess && !isConfirming && hash) {
+      setShowSuccess(true);
+    }
+  }, [isConfirmed, showSuccess, isConfirming, hash]);
 
   const handleMint = () => {
     setShowSuccess(false);
@@ -79,9 +79,11 @@ export default function Home() {
   };
 
   // Sync hook error to local state if it happens asynchronously
-  if (mintError && !errorMessage) {
-    setErrorMessage(extractError(mintError));
-  }
+  useEffect(() => {
+    if (mintError && !errorMessage) {
+      setErrorMessage(extractError(mintError));
+    }
+  }, [mintError, errorMessage]);
 
   return (
     <main
