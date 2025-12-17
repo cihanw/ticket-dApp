@@ -71,6 +71,55 @@ export default function OrganizerDashboard() {
         }
     });
 
+    // Fetch Details for Selected Event (votingDeadline, stats)
+    const { data: votingDeadline } = useReadContract({
+        address: selectedEvent || undefined,
+        abi: TICKETING_CONTRACT_ABI,
+        functionName: 'votingDeadline',
+        query: { enabled: !!selectedEvent }
+    });
+
+    const { data: stats, refetch: refetchStats } = useReadContract({
+        address: selectedEvent || undefined,
+        abi: TICKETING_CONTRACT_ABI,
+        functionName: 'stats',
+        query: { enabled: !!selectedEvent }
+    });
+
+    // Withdrawal Logic
+    const { writeContract: withdrawWrite, data: withdrawHash, isPending: isWithdrawing, error: withdrawError } = useWriteContract();
+    const { isLoading: isConfirmingWithdraw, isSuccess: isWithdrawSuccess } = useWaitForTransactionReceipt({ hash: withdrawHash });
+
+    const handleWithdraw = () => {
+        if (!selectedEvent) return;
+        withdrawWrite({
+            address: selectedEvent,
+            abi: TICKETING_CONTRACT_ABI,
+            functionName: 'withdrawFunds'
+        });
+    };
+
+    const canWithdraw = React.useMemo(() => {
+        if (!votingDeadline || !stats) return false;
+        const now = Math.floor(Date.now() / 1000);
+        // Stats[5] is fundsWithdrawn (bool)
+        const fundsWithdrawn = (stats as any)[5];
+
+        return now > Number(votingDeadline) && !fundsWithdrawn;
+    }, [votingDeadline, stats]);
+
+    // Derived Status Text
+    const withdrawalStatusText = React.useMemo(() => {
+        if (!votingDeadline || !stats) return "Loading...";
+        const fundsWithdrawn = (stats as any)[5];
+        if (fundsWithdrawn) return "Funds Processed (Withdrawn/Burned)";
+
+        const now = Math.floor(Date.now() / 1000);
+        if (now <= Number(votingDeadline)) return "Voting Period Active";
+
+        return "Ready to Withdraw";
+    }, [votingDeadline, stats]);
+
     // Write Hook for Scanning
     const { writeContract, data: scanHash, isPending: isScanning, error: scanError } = useWriteContract();
     const { isLoading: isConfirmingScan, isSuccess: isScanSuccess } = useWaitForTransactionReceipt({ hash: scanHash });
@@ -150,12 +199,44 @@ export default function OrganizerDashboard() {
                         <div className="lg:col-span-2">
                             {selectedEvent ? (
                                 <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 h-full">
+
                                     <div className="flex items-center justify-between mb-8 border-b border-zinc-800 pb-6">
                                         <div>
-                                            <h2 className="text-2xl font-bold mb-2">Check-In / Ticket Scan</h2>
+                                            <h2 className="text-2xl font-bold mb-2">Event Management</h2>
                                             <p className="text-zinc-500 text-sm">Target Contract: <code className="text-purple-400">{selectedEvent}</code></p>
                                         </div>
+
+                                        {/* Withdraw Section */}
+                                        <div className="flex flex-col items-end gap-2">
+                                            <span className="text-xs text-zinc-500 font-mono">{withdrawalStatusText}</span>
+                                            <button
+                                                onClick={handleWithdraw}
+                                                disabled={!canWithdraw || isWithdrawing || isConfirmingWithdraw}
+                                                className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${canWithdraw
+                                                    ? 'bg-green-600 hover:bg-green-500 text-white'
+                                                    : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                                                    }`}
+                                            >
+                                                {isWithdrawing || isConfirmingWithdraw ? 'Processing...' : 'Withdraw Funds'}
+                                            </button>
+                                        </div>
                                     </div>
+
+                                    {/* Withdrawal Feedback */}
+                                    {(withdrawError || isWithdrawSuccess) && (
+                                        <div className="mb-6">
+                                            {withdrawError && (
+                                                <div className="p-3 bg-red-900/20 border border-red-800 rounded-lg text-red-200 text-sm">
+                                                    Error: {withdrawError.message.includes("FundsAlreadyProcessed") ? "Already Processed" : withdrawError.message.split('\n')[0]}
+                                                </div>
+                                            )}
+                                            {isWithdrawSuccess && (
+                                                <div className="p-3 bg-green-900/20 border border-green-800 rounded-lg text-green-400 text-sm">
+                                                    Funds processed successfully! (Sent to wallet or burned based on conditions).
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
 
                                     {/* Scan Input */}
                                     <div className="max-w-md mx-auto space-y-6 py-8">
