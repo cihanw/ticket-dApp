@@ -285,5 +285,17 @@ export const TICKETING_CONTRACT_ABI = [
         ],
         "name": "RefundPeriodExpired",
         "type": "error"
+    },
+    {
+        "inputs": [],
+        "name": "withdrawFunds",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "FundsAlreadyProcessed",
+        "type": "error"
     }
 ] as const;
